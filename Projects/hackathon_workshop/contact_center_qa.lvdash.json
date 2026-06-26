@@ -1,0 +1,531 @@
+{
+  "datasets": [
+    {
+      "name": "kpi_summary",
+      "displayName": "Kpi Summary",
+      "queryLines": [
+        "SELECT COUNT(*) AS total_calls_evaluated,\n",
+        "                   ROUND(AVG(overall_qa_score), 2) AS avg_qa_score,\n",
+        "                   ROUND(COUNT(CASE WHEN requires_human_review THEN 1 END) * 100.0 / COUNT(*), 1) AS pct_flagged,\n",
+        "                   ROUND(AVG(greeting_adherence), 3) AS avg_script_adherence\n",
+        "            FROM mmt_aws_usw2_catalog.contact_calls.gold_scorecard"
+      ]
+    },
+    {
+      "name": "agent_leaderboard",
+      "displayName": "Agent Leaderboard",
+      "queryLines": [
+        "SELECT agent_name, COUNT(*) AS calls_evaluated,\n",
+        "                   ROUND(AVG(overall_qa_score), 2) AS avg_score,\n",
+        "                   ROUND(AVG(empathy_score), 2) AS avg_empathy,\n",
+        "                   COUNT(CASE WHEN requires_human_review THEN 1 END) AS flagged_calls\n",
+        "            FROM mmt_aws_usw2_catalog.contact_calls.gold_scorecard\n",
+        "            GROUP BY agent_name ORDER BY avg_score DESC"
+      ]
+    },
+    {
+      "name": "outlier_calls",
+      "displayName": "Outlier Calls",
+      "queryLines": [
+        "SELECT interaction_id, agent_name, queue, overall_qa_score, sentiment, coaching_notes\n",
+        "            FROM mmt_aws_usw2_catalog.contact_calls.gold_scorecard\n",
+        "            WHERE requires_human_review = true\n",
+        "            ORDER BY overall_qa_score ASC"
+      ]
+    },
+    {
+      "name": "queue_performance",
+      "displayName": "Queue Performance",
+      "queryLines": [
+        "SELECT queue, COUNT(*) AS total_calls, ROUND(AVG(overall_qa_score), 2) AS avg_score,\n",
+        "                   COUNT(CASE WHEN overall_qa_score < 3 THEN 1 END) AS poor_calls,\n",
+        "                   COUNT(CASE WHEN requires_human_review THEN 1 END) AS flagged\n",
+        "            FROM mmt_aws_usw2_catalog.contact_calls.gold_scorecard\n",
+        "            GROUP BY queue ORDER BY avg_score DESC"
+      ]
+    },
+    {
+      "name": "coaching_opportunities",
+      "displayName": "Coaching Opportunities",
+      "queryLines": [
+        "WITH agent_criteria AS (\n",
+        "              SELECT agent_name, 'Greeting' AS criterion, AVG(greeting_score) AS avg_score FROM mmt_aws_usw2_catalog.contact_calls.gold_scorecard GROUP BY agent_name\n",
+        "              UNION ALL SELECT agent_name, 'Identity Verification', AVG(identity_verification_score) FROM mmt_aws_usw2_catalog.contact_calls.gold_scorecard GROUP BY agent_name\n",
+        "              UNION ALL SELECT agent_name, 'Empathy', AVG(empathy_score) FROM mmt_aws_usw2_catalog.contact_calls.gold_scorecard GROUP BY agent_name\n",
+        "              UNION ALL SELECT agent_name, 'Compliance', AVG(compliance_score) FROM mmt_aws_usw2_catalog.contact_calls.gold_scorecard GROUP BY agent_name\n",
+        "              UNION ALL SELECT agent_name, 'Resolution', AVG(resolution_score) FROM mmt_aws_usw2_catalog.contact_calls.gold_scorecard GROUP BY agent_name\n",
+        "            )\n",
+        "            SELECT agent_name, criterion, ROUND(avg_score, 2) AS avg_criterion_score,\n",
+        "                   CASE WHEN avg_score < 2.5 THEN 'URGENT' WHEN avg_score < 3.5 THEN 'COACH' ELSE 'GOOD' END AS action_needed\n",
+        "            FROM agent_criteria WHERE avg_score < 3.5 ORDER BY avg_score ASC"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "qa_overview",
+      "displayName": "QA Overview",
+      "layout": [
+        {
+          "widget": {
+            "name": "counter_avg_qa_score",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "kpi_summary",
+                  "fields": [
+                    {
+                      "name": "avg_qa_score",
+                      "expression": "`avg_qa_score`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Avg QA Score",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_qa_score"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_total_calls",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "kpi_summary",
+                  "fields": [
+                    {
+                      "name": "total_calls_evaluated",
+                      "expression": "`total_calls_evaluated`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Total Calls Evaluated",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "total_calls_evaluated"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_pct_flagged",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "kpi_summary",
+                  "fields": [
+                    {
+                      "name": "pct_flagged",
+                      "expression": "`pct_flagged`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "% Flagged for Review",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "pct_flagged",
+                  "formatTemplate": "{{ @formatted }}%"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_script_adherence",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "kpi_summary",
+                  "fields": [
+                    {
+                      "name": "avg_script_adherence",
+                      "expression": "`avg_script_adherence`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Avg Script Adherence",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_script_adherence"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "agent_leaderboard_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "agent_leaderboard",
+                  "fields": [
+                    {
+                      "name": "agent_name",
+                      "expression": "`agent_name`"
+                    },
+                    {
+                      "name": "avg_score",
+                      "expression": "`avg_score`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Agent Leaderboard",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "agent_name",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "avg_score",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "agent_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "outlier_calls_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "outlier_calls",
+                  "fields": [
+                    {
+                      "name": "interaction_id",
+                      "expression": "`interaction_id`"
+                    },
+                    {
+                      "name": "agent_name",
+                      "expression": "`agent_name`"
+                    },
+                    {
+                      "name": "queue",
+                      "expression": "`queue`"
+                    },
+                    {
+                      "name": "overall_qa_score",
+                      "expression": "`overall_qa_score`"
+                    },
+                    {
+                      "name": "sentiment",
+                      "expression": "`sentiment`"
+                    },
+                    {
+                      "name": "coaching_notes",
+                      "expression": "`coaching_notes`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Outlier Calls",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "interaction_id",
+                    "displayName": "Interaction ID"
+                  },
+                  {
+                    "fieldName": "agent_name",
+                    "displayName": "Agent"
+                  },
+                  {
+                    "fieldName": "queue",
+                    "displayName": "Queue"
+                  },
+                  {
+                    "fieldName": "overall_qa_score",
+                    "displayName": "QA Score"
+                  },
+                  {
+                    "fieldName": "sentiment",
+                    "displayName": "Sentiment"
+                  },
+                  {
+                    "fieldName": "coaching_notes",
+                    "displayName": "Coaching Notes"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 3,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "queue_performance_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "queue_performance",
+                  "fields": [
+                    {
+                      "name": "queue",
+                      "expression": "`queue`"
+                    },
+                    {
+                      "name": "avg_score",
+                      "expression": "`avg_score`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Queue Performance",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "queue",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "avg_score",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "queue",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "coaching_opportunities_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "coaching_opportunities",
+                  "fields": [
+                    {
+                      "name": "agent_name",
+                      "expression": "`agent_name`"
+                    },
+                    {
+                      "name": "criterion",
+                      "expression": "`criterion`"
+                    },
+                    {
+                      "name": "avg_criterion_score",
+                      "expression": "`avg_criterion_score`"
+                    },
+                    {
+                      "name": "action_needed",
+                      "expression": "`action_needed`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Coaching Opportunities",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "agent_name",
+                    "displayName": "Agent"
+                  },
+                  {
+                    "fieldName": "criterion",
+                    "displayName": "Criterion"
+                  },
+                  {
+                    "fieldName": "avg_criterion_score",
+                    "displayName": "Avg Score"
+                  },
+                  {
+                    "fieldName": "action_needed",
+                    "displayName": "Action Needed"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 9,
+            "width": 6,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}
