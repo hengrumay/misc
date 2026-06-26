@@ -370,7 +370,7 @@ Transcript:
 {transcript}"""
 
 def predict_fn(transcript: str, interaction_id: str = "") -> dict:
-    """Call a DIFFERENT LLM (Claude) to independently score a transcript."""
+    """Call Gemini 2.5 Pro (Google) to independently re-score a transcript — cross-provider judge for nb02's Claude scorer."""
     prompt = SCORING_PROMPT.format(transcript=transcript[:8000])  # Truncate for token limits
     
     response = client.predict(
