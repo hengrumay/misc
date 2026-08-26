@@ -1,0 +1,43 @@
+# Databricks App — RWE ADS Studio (React 19 + FastAPI). Serverless by platform.
+# The app binds $DATABRICKS_APP_PORT (see app/backend/app.py). Resources give the
+# app SP access to the serving warehouse + Lakebase; the app reads served ADS
+# from Lakebase and writes only session/review state to the app-state DB.
+# Lakebase = Autoscaling: the `postgres` resource (below) binds the auto-created
+# databricks_postgres DB of the project's production branch. It exists as soon as
+# `databricks postgres create-project` runs, so `bundle deploy` never 404s. The app
+# reaches the real DBs (ads_serving_pg, ads_app) by dbname-override on the same
+# endpoint (PGHOST/PGUSER/LAKEBASE_ENDPOINT are auto-injected by this resource).
+resources:
+  apps:
+    rwds_ads_studio:
+      name: rwe-ads-app   # rename with your initials, e.g. <initials>-rwe-ads-app (apps are NOT dev-prefixed — must be unique)
+      description: "RWE ADS Studio — protocol -> validated SQL -> analyst e-sign -> served ADS (Epi-RWDS)"
+      source_code_path: ../app
+      resources:
+        - name: sql-warehouse
+          description: Serverless warehouse for ADS/cohort reads
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+        - name: postgres
+          description: Lakebase Autoscaling — binds the auto-created databricks_postgres DB (production branch); app dbname-overrides to ads_serving_pg / ads_app on the same endpoint
+          postgres:
+            branch: projects/${var.lakebase_project}/branches/${var.lakebase_branch}
+            database: projects/${var.lakebase_project}/branches/${var.lakebase_branch}/databases/${var.lakebase_bound_database}
+            permission: CAN_CONNECT_AND_CREATE
+        # App-triggered jobs, bound by bundle id (NOT display name). The id survives
+        # dev-mode name prefixing ('[dev <user>] ...'), so the backend resolves each
+        # job by its injected id instead of a name lookup that dev-mode breaks. Binding
+        # also auto-grants the app SP CAN_MANAGE_RUN on deploy (its run_now permission),
+        # so no separate `permissions:` block on these jobs is needed. The resolved id
+        # reaches the app via `valueFrom` env wiring in app/app.yaml.
+        - name: protocol-extract-job
+          description: App — Protocol extraction job; bound by id so the app resolves it despite dev-mode name prefixing (also grants the app SP CAN_MANAGE_RUN)
+          job:
+            id: ${resources.jobs.app_protocol_extract.id}
+            permission: CAN_MANAGE_RUN
+        - name: ads-build-job
+          description: App — parameterized ADS build job; bound by id (also grants the app SP CAN_MANAGE_RUN)
+          job:
+            id: ${resources.jobs.app_ads_build.id}
+            permission: CAN_MANAGE_RUN

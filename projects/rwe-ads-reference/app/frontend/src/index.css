@@ -1,0 +1,164 @@
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+/* ============================================================================
+   Design Tokens: HSL-based, Databricks branding
+   Dark theme as default. Supports light theme via .light class on <html>.
+   ============================================================================ */
+
+:root {
+  /* Sizing & spacing */
+  --radius: 0.5rem;
+
+  /* Brand hues (Databricks lava + navy) */
+  --brand-h: 5;    /* ~red (lava #FF3621 ≈ hsl(5, 100%, 50%)) */
+  --brand-s: 100%;
+
+  /* Dark theme (default) */
+  --background: 220 13% 7%;      /* #0a0f1a */
+  --foreground: 210 20% 98%;     /* near white */
+
+  --card: 220 13% 11%;           /* raised card */
+  --card-foreground: 210 20% 98%;
+
+  --primary: var(--brand-h) var(--brand-s) 50%;           /* hsl(5, 100%, 50%) */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 192 71% 60%;      /* teal (lakebase accent) */
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 220 13% 32%;          /* muted text bg */
+  --muted-foreground: 215 15% 72%;                        /* keep ≥70% L for a11y */
+
+  --accent: 270 84% 60%;         /* purple (secondary accent) */
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 84% 60%;      /* red error state */
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 13% 20%;         /* subtle dividers */
+  --input: 220 13% 15%;          /* form inputs */
+  --ring: var(--brand-h) var(--brand-s) 50%;              /* focus ring */
+
+  --success: 160 84% 45%;        /* green positive state */
+  --warning: 38 92% 55%;         /* amber (warning) */
+
+  /* Sidebar-specific tokens (can differ from main cards if needed) */
+  --sidebar-background: 220 13% 11%;
+  --sidebar-foreground: 210 20% 98%;
+  --sidebar-border: 220 13% 20%;
+
+  /* Progressive type scaling: base 1280px breakpoint */
+  --font-size-scale: 1;
+  --text-ui-xs: calc(11px * var(--font-size-scale));
+  --text-ui-sm: calc(13px * var(--font-size-scale));
+  --text-ui-base: calc(15px * var(--font-size-scale));
+  --text-ui-md: calc(17px * var(--font-size-scale));
+  --text-ui-lg: calc(19px * var(--font-size-scale));
+  --text-ui-xl: calc(21px * var(--font-size-scale));
+  --text-ui-2xl: calc(24px * var(--font-size-scale));
+}
+
+/* Light theme: .light class on <html> */
+.light {
+  --background: 0 0% 98%;        /* near white */
+  --foreground: 222 47% 11%;     /* near black */
+
+  --card: 0 0% 100%;             /* white */
+  --card-foreground: 222 47% 11%;
+
+  --muted: 215 15% 93%;          /* light gray */
+  --muted-foreground: 215 13% 34%;
+
+  --border: 215 15% 89%;         /* light dividers */
+  --input: 215 15% 96%;          /* light form inputs */
+
+  --sidebar-background: 215 15% 93%;
+  --sidebar-foreground: 222 47% 11%;
+  --sidebar-border: 215 15% 89%;
+}
+
+/* 1600px: bump scale to 1.15 */
+@media (min-width: 1600px) {
+  :root {
+    --font-size-scale: 1.15;
+  }
+}
+
+/* 1920px: bump to 1.3 */
+@media (min-width: 1920px) {
+  :root {
+    --font-size-scale: 1.3;
+  }
+}
+
+/* 2560px: bump to 1.5 */
+@media (min-width: 2560px) {
+  :root {
+    --font-size-scale: 1.5;
+  }
+}
+
+/* ============================================================================
+   Base Styles & Utilities
+   ============================================================================ */
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground;
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.light body {
+  color-scheme: light;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-background;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted rounded-full;
+  border: 2px solid hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground;
+}
+
+/* Focus-visible ring (accessibility) */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+}
+
+/* Glass morphism utility */
+.glass {
+  @apply bg-card/80 backdrop-blur-md border border-border rounded-xl;
+}
+
+/* Error boundary fallback */
+.error-boundary {
+  @apply p-6 rounded-lg bg-destructive/10 border border-destructive;
+}
+
+.error-boundary-title {
+  @apply font-bold text-destructive mb-2;
+}
+
+.error-boundary-message {
+  @apply text-sm text-muted-foreground;
+}

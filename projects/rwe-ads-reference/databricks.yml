@@ -1,0 +1,93 @@
+# =============================================================================
+# Databricks Asset Bundle — RWE ADS Automation
+# =============================================================================
+# Serverless everywhere. Migration to another workspace is:
+#   1. edit demo.config.yaml (catalog / schemas / lakebase / warehouse)
+#   2. authenticate to your workspace (`databricks auth login --profile <your-profile>`)
+#   3. databricks bundle deploy -t <target> --profile <your-profile>
+#
+# The bundle deliberately does NOT hardcode the catalog/schema literals — job
+# and pipeline tasks read demo.config.yaml at runtime via lib/config.py (the
+# whole repo, including demo.config.yaml, is synced to the workspace). Auth is
+# PROFILE-BASED: the workspace host comes from your CLI profile, not this file.
+# Only warehouse_id and notification email live here as bundle variables.
+# =============================================================================
+bundle:
+  name: rwe-ads-automation
+
+variables:
+  warehouse_id:
+    description: Serverless SQL warehouse id (mirrors demo.config.yaml workspace.warehouse_id)
+    default: "<your-warehouse-id>"
+  notification_email:
+    description: Email for job failure notifications
+    default: "<your-email>"
+  config_path:
+    description: Workspace path to demo.config.yaml after sync
+    default: ${workspace.file_path}/demo.config.yaml
+  # Lakebase Autoscaling identifiers (mirror demo.config.yaml lakebase.*). The app's
+  # `postgres` resource binds the auto-created databricks_postgres DB of the project's
+  # production branch — it exists the instant `databricks postgres create-project` runs,
+  # so `bundle deploy` never 404s.
+  lakebase_project:
+    description: Lakebase Autoscaling project id (prereq — run `databricks postgres create-project` first)
+    default: rwe-ads-lakebase
+  lakebase_branch:
+    description: Lakebase branch id (auto-created production branch)
+    default: production
+  lakebase_bound_database:
+    description: Auto-created Postgres DB the app resource binds (exists at project create)
+    default: databricks-postgres
+  allow_auto_esign:
+    description: "DEMO ONLY: 'true' auto-e-signs eval-passing protocol specs unattended in `bundle run`; empty/false leaves them for human review + e-sign in the app (the GxP control). Mirrors demo.config.yaml allow_auto_esign."
+    default: ""
+
+include:
+  - resources/*.yml
+
+# Sync the whole project so lib/, waves/, pipelines/, demo.config.yaml land in
+# the workspace file tree the jobs/pipelines/app reference.
+sync:
+  include:
+    - demo.config.yaml
+    - lib/**
+    - waves/**
+    - pipelines/**
+    - scripts/**       # protocol_extract seeds sample protocols via scripts/seed_protocol_pdfs.py
+    - app/**
+  exclude:
+    # Exclude the ENTIRE frontend source toolchain from the workspace sync (and
+    # therefore from the deployed app payload). The app resource's
+    # source_code_path (../app) is served from the synced workspace copy of app/,
+    # so anything excluded here never reaches the running app. The app serves the
+    # PRE-BUILT bundle in app/static (committed) — the React/Vite source, package
+    # manifests, lockfile, and configs under app/frontend are build-time only and
+    # are never read at runtime. Excluding them keeps the app payload small and
+    # avoids the Databricks Apps footgun where a package.json in the source tree
+    # triggers an `npm install` at startup. build.py runs the build LOCALLY from
+    # app/frontend, so this exclude does not affect building. (node_modules would
+    # also blow past the 10 MB/file app limit.)
+    - app/frontend/**
+    - "**/__pycache__/**"
+
+targets:
+  # ---- dev: your development workspace -----------------------------------
+  # Host comes from your CLI profile (`--profile <your-profile>` or DATABRICKS_HOST),
+  # so it is intentionally NOT hardcoded here.
+  dev:
+    mode: development
+    default: true
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      user_name: ${workspace.current_user.userName}
+
+  # ---- prod: your production workspace -----------------------------------
+  # Host comes from your CLI profile for this target. Everything else migrates
+  # via demo.config.yaml. Left as a template.
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      user_name: ${workspace.current_user.userName}

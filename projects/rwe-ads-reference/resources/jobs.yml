@@ -1,0 +1,164 @@
+# Serverless jobs — one per wave, orchestrated. No job clusters are declared, so
+# tasks run on serverless job compute (ENFORCED). Names resolve at runtime from
+# demo.config.yaml via lib/config.py. `bundle run <wave>` reproduces the wave live.
+resources:
+  jobs:
+    wave0_foundation:
+      name: "[RWE-ADS] Wave 0 — Foundation (schemas/volume/KB/VS index/gateway/lakebase)"
+      tasks:
+        - task_key: uc_foundation                 # schemas, protocols volume, approved-SQL KB, inference table
+          spark_python_task:
+            python_file: ../waves/wave0_foundation/setup.py
+          environment_key: default
+        - task_key: gateway                        # ads-ai-gateway endpoint + guardrails + secret scope
+          depends_on: [{task_key: uc_foundation}]
+          spark_python_task:
+            python_file: ../waves/wave0_foundation/gateway.py
+          environment_key: default
+        - task_key: lakebase_dbs                   # NOTE only — DBs are provisioned control-plane by scripts/setup_lakebase.sh (no w.postgres in-kernel)
+          depends_on: [{task_key: uc_foundation}]
+          spark_python_task:
+            python_file: ../waves/wave0_foundation/provision_lakebase.py
+          environment_key: default
+        - task_key: build_kb_index                 # VS index over the approved-SQL KB — foundation infra (moved from wave3); idempotent; NO-OP unless vector_search.enabled (kb_retrieval keyword-matches by default)
+          depends_on: [{task_key: uc_foundation}]  # needs the KB table seeded by uc_foundation first
+          spark_python_task:
+            python_file: ../waves/wave0_foundation/build_index.py
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: {client: "3", dependencies: [pyyaml, databricks-sdk, databricks-vectorsearch]}  # gateway uses WorkspaceClient; build_kb_index uses VectorSearchClient (no-op when VS disabled); Lakebase provisioning is control-plane
+      email_notifications:
+        on_failure: ["${var.notification_email}"]
+
+    wave1_synth_bronze:
+      name: "[RWE-ADS] Wave 1 — Synthetic RWD + Bronze + Protocol ingestion"
+      tasks:
+        - task_key: generate_synth_rwd
+          spark_python_task:
+            python_file: ../waves/wave1_synth_bronze/generate.py
+          environment_key: default
+        - task_key: protocol_ingest                # create protocol_spec/extraction tables + narrative seed
+          depends_on: [{task_key: generate_synth_rwd}]
+          spark_python_task:
+            python_file: ../waves/wave1_synth_bronze/protocol_ingest.py
+          environment_key: default
+        - task_key: protocol_extract               # PDF/DOCX -> ai_parse_document + ai_extract -> standardize -> protocol_spec
+          depends_on: [{task_key: protocol_ingest}]
+          spark_python_task:
+            python_file: ../waves/wave1_synth_bronze/protocol_extract.py
+          environment_key: default
+        - task_key: medallion                      # SDP silver + gold (reads generated bronze)
+          depends_on: [{task_key: generate_synth_rwd}]
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ads_medallion.id}
+      environments:
+        - environment_key: default
+          spec: {client: "3", dependencies: [pyyaml, faker, numpy, reportlab, python-docx]}  # reportlab+python-docx: protocol_extract seeds sample PDFs/DOCX (no runtime pip)
+      email_notifications:
+        on_failure: ["${var.notification_email}"]
+
+    wave3_ads_build:
+      name: "[RWE-ADS] Wave 3 — ADS builder + eval + review gate"
+      tasks:
+        - task_key: protocol_eval                  # reference-free extraction eval (Stages 1-3) — writes quality signal + gates approval (KB index now built in wave0)
+          spark_python_task:
+            python_file: ../waves/wave3_ads_build/run_protocol_eval.py
+          environment_key: default
+        - task_key: approve_protocols              # human gate by DEFAULT; opt-in auto-e-sign via allow_auto_esign; always skips eval_ok!=True (analyst gate is the app)
+          depends_on: [{task_key: protocol_eval}]
+          spark_python_task:
+            python_file: ../waves/wave3_ads_build/approve_protocols.py
+            parameters: ["--allow-auto-esign", "${var.allow_auto_esign}"]
+          environment_key: default
+        - task_key: run_poc_low                    # KB-grounded ADS build (validate-don't-execute) from approved spec
+          depends_on: [{task_key: approve_protocols}]
+          spark_python_task:
+            python_file: ../waves/wave3_ads_build/run_ads_build.py
+            parameters: ["--poc", "poc_low"]
+          environment_key: default
+        - task_key: run_poc_med
+          depends_on: [{task_key: approve_protocols}]
+          spark_python_task:
+            python_file: ../waves/wave3_ads_build/run_ads_build.py
+            parameters: ["--poc", "poc_med"]
+          environment_key: default
+        - task_key: run_poc_high
+          depends_on: [{task_key: approve_protocols}]
+          spark_python_task:
+            python_file: ../waves/wave3_ads_build/run_ads_build.py
+            parameters: ["--poc", "poc_high"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: {client: "3", dependencies: [pyyaml, "mlflow>=3.1", "databricks-vectorsearch", "databricks-sdk"]}
+      email_notifications:
+        on_failure: ["${var.notification_email}"]
+
+    # Lightweight jobs the app triggers on demand (avoid re-running synth generation).
+    app_protocol_extract:
+      name: "[RWE-ADS] App — Protocol extraction (PDF/DOCX -> protocol_spec)"
+      tasks:
+        - task_key: extract
+          spark_python_task:
+            python_file: ../waves/wave1_synth_bronze/protocol_extract.py
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: {client: "3", dependencies: [pyyaml, reportlab, python-docx]}  # protocol_extract may seed sample PDFs/DOCX on an empty volume (no runtime pip)
+
+    app_ads_build:
+      name: "[RWE-ADS] App — ADS build (parameterized by poc)"
+      parameters:
+        - name: poc
+          default: poc_low
+      tasks:
+        - task_key: build
+          spark_python_task:
+            python_file: ../waves/wave3_ads_build/run_ads_build.py
+            parameters: ["--poc", "{{job.parameters.poc}}"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: {client: "3", dependencies: [pyyaml, "mlflow>=3.1", "databricks-sdk"]}
+
+    wave4_model_benchmark:
+      name: "[RWE-ADS] Wave 4 — Model benchmark + cost"
+      tasks:
+        - task_key: benchmark_pocs                 # live multi-model bench through the AI Gateway wrapper
+          spark_python_task:
+            python_file: ../waves/wave4_model_benchmark/run_benchmark_live.py
+          environment_key: default
+        - task_key: cost_report
+          depends_on: [{task_key: benchmark_pocs}]
+          spark_python_task:
+            python_file: ../waves/wave4_model_benchmark/cost_report.py
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: {client: "3", dependencies: [pyyaml, "mlflow>=3.1", "databricks-sdk"]}
+      email_notifications:
+        on_failure: ["${var.notification_email}"]
+
+    wave5_serving_audit:
+      name: "[RWE-ADS] Wave 5 — Audit + Lakebase serving + app SP grant"
+      tasks:
+        - task_key: audit_schema                   # hash-chained repro_manifest + gxp_audit
+          spark_python_task:
+            python_file: ../waves/wave5_serving_audit_app/setup_audit.py
+          environment_key: default
+        - task_key: lakebase_serving               # NOTE only — synced tables + app-state DDL are control-plane (scripts/setup_synced_tables.sh); no w.postgres in-kernel
+          depends_on: [{task_key: audit_schema}]
+          spark_python_task:
+            python_file: ../waves/wave5_serving_audit_app/setup_sync.py
+          environment_key: default
+        - task_key: grant_app_sp                    # NOTE only — app-SP grant is control-plane (scripts/setup_synced_tables.sh); no w.postgres in-kernel
+          depends_on: [{task_key: lakebase_serving}]
+          spark_python_task:
+            python_file: ../waves/wave5_serving_audit_app/grant_app_sp.py
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: {client: "3", dependencies: [pyyaml]}  # audit_schema uses spark only; serving sync + grant are control-plane (setup_synced_tables.sh) — no psycopg/w.postgres here
+      email_notifications:
+        on_failure: ["${var.notification_email}"]
