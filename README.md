@@ -1,38 +1,54 @@
-# Databricks Solution Accelerator Template - MODIFY THIS README.md
+# misc
 
-[![Databricks](https://img.shields.io/badge/Databricks-Solution_Accelerator-FF3621?style=for-the-badge&logo=databricks)](https://databricks.com)
-[![Unity Catalog](https://img.shields.io/badge/Unity_Catalog-Enabled-00A1C9?style=for-the-badge)](https://docs.databricks.com/en/data-governance/unity-catalog/index.html)
-[![Serverless](https://img.shields.io/badge/Serverless-Compute-00C851?style=for-the-badge)](https://docs.databricks.com/en/compute/serverless.html)
+A monorepo of small, self-contained **synthetic-data example projects** for
+Databricks. Each project under [`projects/`](projects/) is a standalone example
+you can read, run, and share.
 
-## Installation Guidelines
+> **Synthetic only.** Everything in this repo uses generated / fake data.
+> Nothing here may contain:
+> - customer or company names (real engagements),
+> - personal data (PII / PHI — real names, dates of birth, contact details),
+> - internal workspace URLs, workspace IDs, account IDs, or resource IDs,
+> - secrets, tokens, or credentials (placeholders like `<your-token>` are fine),
+> - proprietary brand colors / brand hex codes or other brand fingerprints.
+>
+> Read **[Adding a project](#adding-a-project)** and run the scrub check before
+> you commit anything.
 
-1. Clone the project you'd like to run into your Databricks Workspace
+## Projects
 
-<img width="1726" height="677" alt="Screenshot 2025-07-23 at 11 05 25 AM" src="https://github.com/user-attachments/assets/55b1729f-ad07-420e-a271-843266abfb71" />
+| Project | What it shows |
+|---------|---------------|
+| [rwe-ads-reference](projects/rwe-ads-reference/) | Real-world-evidence (RWE) → analysis-data-set (ADS) reference on Databricks: synthetic patients / claims → medallion pipelines → served ADS app, with protected-health-information (PHI) masking, protocol extraction, and a review-and-sign-off gate. |
 
-2. Open the Asset Bundle Editor in the Databricks UI
+## Layout
 
-<img width="1120" height="665" alt="Screenshot 2025-07-23 at 11 06 12 AM" src="https://github.com/user-attachments/assets/d1f91256-eb8f-4456-8d88-c0a37b1bd4c5" />
+```
+misc/
+├── _template/          # starter accelerator template — copy this to begin a new project
+├── projects/           # one folder per example project
+│   └── <name>/         # self-contained: its own README, code, and synthetic-data generator
+├── .github/            # shared CI / publish workflows
+├── LICENSE.md  NOTICE.md  SECURITY.md  CONTRIBUTING.md
+└── README.md           # this index
+```
 
-3. Click on "Deploy"
+Each project is self-contained — it carries its own README explaining what it is
+and how to run it, plus everything needed to generate its synthetic data. Project
+internals vary (some use notebooks, some use Databricks Asset Bundles with
+pipelines and an app); the project's own README is the entry point.
 
-<img width="1523" height="902" alt="Screenshot 2025-07-23 at 11 09 37 AM" src="https://github.com/user-attachments/assets/9564cbdd-c5c5-4210-bf27-2b19e6efc85b" />
+## Adding a project
 
-4. Navigate to the Deployments tab in the Asset Bundle UI (🚀 icon) and click "Run" on the job available. This will run the notebooks from this project sequentially.
+1. Copy the starter template and rename it:
+   `cp -r _template projects/my-example`
+2. Fill in `projects/my-example/README.md` — purpose, prerequisites, how to run.
+3. Add the synthetic-data generator and code. Generated / fake data only.
+4. Add a row to the **Projects** table above with a one-line description.
+5. **Run the scrub check before committing.** The `misc-project-check` skill
+   (in [`.claude/skills/misc-project-check/`](.claude/skills/misc-project-check/SKILL.md))
+   walks the onboarding steps and scans for anything that breaks the
+   synthetic-only rule above — customer names, PII/PHI, internal URLs / IDs,
+   secrets, and brand fingerprints. Fix every hit before you commit.
 
-<img width="1527" height="880" alt="Screenshot 2025-07-23 at 11 10 13 AM" src="https://github.com/user-attachments/assets/0f612882-7123-449b-8349-1835bc59523c" />
-
-## Contributing
-
-1. **git clone** this project locally
-2. Utilize the Databricks CLI to test your changes against a Databricks workspace of your choice
-3. Contribute to repositories with pull requests (PRs), ensuring that you always have a second-party review from a capable teammate
-
-
-## 📄 Third-Party Package Licenses - FILL IN WITH YOUR PROJECT'S OPEN SOURCE PACKAGES + LICENSING
-
-&copy; 2025 Databricks, Inc. All rights reserved. The source in this project is provided subject to the Databricks License [https://databricks.com/db-license-source]. All included or referenced third party libraries are subject to the licenses set forth below.
-
-| Package | License | Copyright |
-|---------|---------|-----------|
-| | | |
+Synthetic only. When in doubt, leave it out.

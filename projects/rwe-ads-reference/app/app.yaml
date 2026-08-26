@@ -1,0 +1,42 @@
+# Databricks App configuration for RWE ADS Automation.
+# Monolith: FastAPI (backend/app.py) serves the built Vite bundle + /api.
+# Paths are relative to the app source root (this directory). The app binds
+# $DATABRICKS_APP_PORT itself in code — app.yaml carries no fixed port.
+command: ["python", "backend/app.py"]
+
+env:
+  # On Databricks Apps, DATABRICKS_CLIENT_ID/_SECRET are injected automatically,
+  # so WorkspaceClient() (and Lakebase OAuth) authenticate with the app SP.
+  # Local dev falls back to a CLI profile via LAKEBASE_PROFILE.
+  #
+  # The `postgres` app resource (resources/app.yml) auto-injects PGHOST, PGPORT,
+  # PGDATABASE (= databricks_postgres, the bound DB), PGUSER (= app SP client id),
+  # PGSSLMODE, and LAKEBASE_ENDPOINT (the primary endpoint resource path). The app
+  # mints a per-request OAuth token from LAKEBASE_ENDPOINT and dbname-overrides to
+  # ads_serving_pg / ads_app on the SAME endpoint (see backend/app.py _lakebase_query).
+  # Branch/endpoint/db resource paths also resolve from demo.config.yaml via config.py.
+  - name: LAKEBASE_PROFILE
+    value: DEFAULT
+  # demo.config.yaml is vendored next to the backend at build time; this points
+  # config.py at it so the app resolves names without the rest of the repo.
+  - name: ADS_CONFIG_PATH
+    value: ./demo.config.yaml
+  # App-triggered job ids, injected from the bound `job` app resources (resources/app.yml).
+  # `valueFrom` names the RESOURCE; the platform substitutes the RESOLVED job id, which is
+  # immune to dev-mode display-name prefixing ('[dev <user>] [RWE-ADS] App — ...'). The
+  # backend (_run_job) reads these first and only falls back to a name-substring scan in
+  # local dev where these env vars are absent.
+  #
+  # CAVEAT (observed elsewhere; unverified here — confirming needs a real deploy + an
+  # OAuth-gated click through the app): in some similar Databricks Apps setups, `valueFrom`
+  # resource references have been seen to resolve EMPTY at runtime after deploy (the app
+  # object's bound `resources` came back empty), leaving these env vars blank. This is NOT
+  # a confirmed defect in THIS bundle — the local `_run_job` name-scan fallback also can't
+  # fire on Apps (the env vars are expected to be present). If a deployed run shows these
+  # ids blank, the proven fallback is to hardcode the resolved job ids as plain `value:`
+  # here via a per-target render step (discover the id, write it in) — the same pattern the
+  # resource-binding pattern adopted after hitting the empty-`valueFrom` behavior.
+  - name: DATABRICKS_JOB_PROTOCOL_EXTRACT
+    valueFrom: protocol-extract-job
+  - name: DATABRICKS_JOB_ADS_BUILD
+    valueFrom: ads-build-job

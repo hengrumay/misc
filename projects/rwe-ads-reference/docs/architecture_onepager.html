@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RWE ADS Automation — architecture &amp; where agents fit (as-built v1.5)</title>
+<style>
+  :root{
+    --navy:#1B3139; --lava:#FF3621; --teal:#00A97F; --amber:#B8860B;
+    --ink:#1a2733; --muted:#5b6b78; --line:#d9e0e6; --bg:#ffffff;
+    --chip:#eef4f3; --core:#e8f5ef; --opt:#fff4e6; --callout:#f4f8fb;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Public Sans","Segoe UI",Helvetica,Arial,sans-serif;font-size:10.5px;line-height:1.42;}
+  .page{max-width:820px;margin:0 auto;padding:26px 30px;}
+  h1{font-size:19px;margin:0 0 2px;color:var(--navy);letter-spacing:-.2px;}
+  .sub{color:var(--muted);font-size:10px;margin:0 0 12px;}
+  h2{font-size:13px;color:var(--navy);margin:16px 0 6px;padding-bottom:3px;border-bottom:2px solid var(--lava);}
+  h3{font-size:11px;margin:10px 0 4px;color:var(--navy);}
+  p{margin:5px 0;}
+  code{font-family:"DM Mono","Consolas",monospace;background:var(--chip);padding:1px 4px;border-radius:3px;font-size:9.4px;color:var(--navy);}
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-left:5px solid var(--lava);padding-left:12px;}
+  .pill{display:inline-block;background:var(--teal);color:#fff;font-weight:700;font-size:8.5px;padding:3px 8px;border-radius:20px;white-space:nowrap;}
+  .callout{background:var(--callout);border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:6px;padding:9px 12px;margin:10px 0;font-size:10px;}
+  .flow{background:var(--navy);color:#eaf1f4;border-radius:8px;padding:10px 12px;font-size:10px;text-align:center;letter-spacing:.2px;}
+  .flow b{color:#fff;}
+  .flow .arw{color:var(--lava);font-weight:700;padding:0 4px;}
+  table{width:100%;border-collapse:collapse;margin:6px 0 4px;font-size:9.4px;}
+  th{background:var(--navy);color:#fff;text-align:left;padding:5px 7px;font-weight:600;}
+  td{border-bottom:1px solid var(--line);padding:5px 7px;vertical-align:top;}
+  tr:nth-child(even) td{background:#f7fafb;}
+  .ok{color:var(--teal);font-weight:700;}
+  .core{background:var(--core);border:1px solid #cfe9dd;border-radius:6px;padding:8px 11px;}
+  .opt{background:var(--opt);border:1px solid #f2ddb8;border-radius:6px;padding:8px 11px;}
+  .two{display:flex;gap:12px;}
+  .two>div{flex:1;}
+  ul{margin:4px 0;padding-left:16px;}
+  li{margin:2.5px 0;}
+  ol.steps{counter-reset:st;list-style:none;padding-left:0;margin:6px 0;}
+  ol.steps>li{counter-increment:st;position:relative;padding:5px 0 5px 30px;border-bottom:1px dashed var(--line);}
+  ol.steps>li::before{content:counter(st);position:absolute;left:0;top:4px;background:var(--lava);color:#fff;
+    width:19px;height:19px;border-radius:50%;text-align:center;line-height:19px;font-weight:700;font-size:10px;}
+  .glossary{font-size:9px;color:var(--muted);}
+  .foot{margin-top:14px;padding-top:8px;border-top:1px solid var(--line);color:var(--muted);font-size:8.6px;}
+  .no-break{page-break-inside:avoid;}
+  a{color:#0b6bcb;text-decoration:none;}
+  @page{size:A4;margin:12mm 10mm;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="hdr no-break">
+    <div>
+      <h1>RWE ADS Automation — architecture &amp; where agents fit</h1>
+      <p class="sub">Turning study protocols into analysis-ready datasets on Databricks · <b>as-built v1.5</b> · draft for internal review before any external use</p>
+    </div>
+    <span class="pill">AS-BUILT · SYNTHETIC PoC</span>
+  </div>
+
+  <div class="callout no-break">
+    <b>As-built status.</b> The recommended architecture below is <b>implemented and validated end-to-end for all three PoCs</b> (poc_low / poc_med / poc_high). The previously-open piece — <b>PDF/DOCX extraction</b> — is <b>done</b>: <code>ai_parse_document</code> → <code>ai_extract</code> turns protocol files into the structured spec that drives the build. Markdown parsing remains only as a narrative-only fallback. The <b>As-built</b> column in §2 maps each recommended step to the live component.
+  </div>
+
+  <p><b>In plain English.</b> Turn a study protocol (a document describing an epidemiology study) into an analysis-ready dataset (ADS) on governed data by assembling <b>pre-approved SQL building blocks</b> (not free-form model-generated SQL), validating each step, and requiring a recorded <b>human approval</b> before results are used. Most of the workflow is a predictable, governed pipeline; an AI "agent" is genuinely valuable in one place — letting an analyst ask questions of the finished dataset — and that is optional.</p>
+
+  <h2>1 · The big picture</h2>
+  <div class="flow no-break">
+    <b>Study protocol (PDF/DOCX)</b> <span class="arw">→</span> Extract fields <span class="arw">→</span> Structured spec <span class="arw">→</span> Build ADS SQL <span class="arw">→</span> Validate + review <span class="arw">→</span> <b>Approved ADS + audit trail</b>
+  </div>
+  <p style="text-align:center;color:var(--muted);font-size:9px;margin-top:4px;">A governed, predictable pipeline. SQL comes from the approved knowledge base; every step is validated; a human approves before use.</p>
+
+  <h2>2 · Recommended build (Databricks-native) — with as-built status</h2>
+  <table class="no-break">
+    <tr><th style="width:29%">Step</th><th style="width:11%">Component / Wave</th><th>As-built status</th></tr>
+    <tr><td>Ingest protocol (PDF/DOCX → fields)</td><td>AI Functions · W1</td><td><span class="ok">✅ Live</span> — <code>ai_parse_document</code>→<code>ai_extract</code>→<code>protocol_spec</code> (PDF + DOCX, all 3 PoCs)</td></tr>
+    <tr><td>→ Structured spec (extracted fields)</td><td>W1</td><td><span class="ok">✅ Live</span> — coded <code>protocol_spec</code> (dx/ndc/exclusion/outcome codes, ages, windows, covariates) + per-field confidence</td></tr>
+    <tr><td>→ Governed medallion (bronze→silver→gold)</td><td>SDP · W1</td><td><span class="ok">✅ In place</span> — serverless declarative pipeline → <code>ads_serving.patient_timeline</code></td></tr>
+    <tr><td>→ Build ADS SQL from approved KB</td><td>W3</td><td><span class="ok">✅ Live</span> — composes only <code>status='approved'</code> snippets; per-complexity recipes</td></tr>
+    <tr><td>→ Validate-don't-execute</td><td>W3</td><td><span class="ok">✅ Live</span> — EXPLAIN-gates every step; executes only vs synthetic gold</td></tr>
+    <tr><td>→ Extraction eval → analyst review + approval → serve + audit</td><td>W3→5</td><td><span class="ok">✅ Live</span> — Stage-1 deterministic <code>eval_ok</code> is the hard gate (Stage-3 model judges advisory); protocol + ADS e-sign gates; hash-chained GxP audit; Lakebase serving. <b>Demo default auto-signs eval-passing specs under a SYSTEM actor — see §4.</b></td></tr>
+  </table>
+  <p style="font-size:9.2px;color:var(--muted);">Orchestrated with <b>native Databricks Workflows/Jobs + declarative pipelines on serverless</b> (verified: 20 job tasks + 1 pipeline; <b>no LangGraph or custom agent framework</b>). Model calls run <b>in-platform</b>; <code>gateway_call</code> applies <b>in-process</b> PII masking, audit logging, and MLflow tracing. External-egress denial is a <b>workspace policy</b> (<code>egress_policy: deny_external</code>), not enforced inside <code>gateway_call</code> (the named <code>ads-ai-gateway</code> endpoint is a placeholder; strict gateway routing is a follow-on).</p>
+
+  <h2>3 · Where an agent genuinely adds value</h2>
+  <div class="two no-break">
+    <div class="core">
+      <h3>Keep it a governed pipeline (CORE)</h3>
+      <ul>
+        <li>Document extraction → structured spec: AI Functions in a job — <span class="ok">✅ built</span></li>
+        <li>ADS SQL from the approved KB, validated before use — <span class="ok">✅ built</span></li>
+        <li>Orchestration: native Workflows/Jobs + pipelines (serverless) — <span class="ok">✅ built</span></li>
+        <li>Human review + approval; reproducibility + audit — <span class="ok">✅ built</span></li>
+      </ul>
+      <p style="font-size:9px;margin:2px 0 0;">Predictable, governed, easy to audit — the right default for a regulated workflow.</p>
+    </div>
+    <div class="opt">
+      <h3>Add an agent only where it earns its place (OPTIONAL)</h3>
+      <ul>
+        <li><b>Genie</b> for analyst Q&amp;A over the approved ADS tables — the clearest fit. <span class="ok">optional — config placeholder</span> (point a Genie space at the approved <code>ads_output</code> post-deploy)</li>
+        <li>Multi-agent orchestration — only if the workflow becomes genuinely dynamic (branching). A native Workflow already covers a fixed pipeline. <b>Not built (by design).</b></li>
+      </ul>
+      <p style="font-size:9px;margin:2px 0 0;">Reserve "agent" for genuinely dynamic reasoning — not a fixed pipeline.</p>
+    </div>
+  </div>
+
+  <h2>4 · Data posture &amp; one honest divergence</h2>
+  <ul>
+    <li><b>Data posture:</b> synthetic / de-identified only — deterministic synthetic RWD (Faker, fixed seed) + synthetic protocol fixtures; <b>no PHI</b>. Real redacted protocols are fine when cleared to share.</li>
+    <li><b>AI Gateway routing (note):</b> the extraction AI Functions are <b>native, in-platform</b> calls — external-egress denial is inherently satisfied, but they don't route through the named <code>ads-ai-gateway</code> endpoint, and PHI masking isn't applied to extraction input unless <code>ai_mask</code> runs first (today it relies on synthetic/redacted inputs). Strict gateway routing is a documented follow-on, not a blocker for synthetic data.</li>
+    <li><b>Eval gate (what blocks e-sign):</b> the hard gate is <b>Stage-1 deterministic validators</b> (<code>eval_ok</code>) — a spec that fails them cannot be e-signed. <b>Stage-3 model judges</b> (via <code>gateway_call</code>) are <b>advisory</b>: they set review priority + flags only, never <code>eval_ok</code>, and silently degrade to Stage-1/2 when no judge endpoint or source text is available. It is not a model-gated eval.</li>
+    <li><b>Auto-e-sign (demo default):</b> the shipped demo config sets <code>allow_auto_esign: true</code>, which auto-signs eval-passing specs under a <b>SYSTEM actor</b> (a non-human signature, explicitly not a 21 CFR Part 11 human e-signature), <b>bypassing the human analyst e-sign</b>. The human e-sign path is real code but off by default — set <code>allow_auto_esign: false</code> for any regulated use.</li>
+    <li><b>poc_high scope:</b> lab-value (LOINC) covariates await a <code>der_baseline_lab_value</code> snippet through the KB approval path; poc_high is built from approved comorbidity/exposure/outcome snippets.</li>
+    <li><b>Enrollment window:</b> defaults to 90 days (synthetic enrollment spans are short); the outcome follow-up window stays faithful to each protocol (365/730 days).</li>
+  </ul>
+
+  <h2>5 · Reproduce on a Windows laptop (UI-first)</h2>
+  <p style="font-size:9.4px;color:var(--muted);margin-top:2px;">Runs entirely against the Databricks web UI plus a few PowerShell commands. Everything is serverless — no local Spark, no cluster to manage.</p>
+  <h3>One-time setup (Windows)</h3>
+  <ul style="font-size:9.4px;">
+    <li>Install (PowerShell, one line each): <code>winget install Databricks.DatabricksCLI</code> · <code>winget install Git.Git</code> · <code>winget install Python.Python.3.11</code> · <code>winget install OpenJS.NodeJS.LTS</code>. Close &amp; reopen PowerShell after.</li>
+    <li>Optional GUIs: <b>GitHub Desktop</b> (clone the repo by clicking) and <b>VS Code</b> (edit <code>demo.config.yaml</code>).</li>
+    <li>You need access to your Databricks workspace <code>&lt;your-workspace&gt;.cloud.databricks.com</code> with permission to run jobs, pipelines, and Apps.</li>
+  </ul>
+  <h3>Steps</h3>
+  <ol class="steps" style="font-size:9.4px;">
+    <li><b>Get the code.</b> GitHub Desktop → <i>Clone repository → URL</i> → <code>&lt;your-org&gt;/&lt;your-repo&gt;</code> (or PowerShell: <code>git clone https://github.com/&lt;your-org&gt;/&lt;your-repo&gt;.git</code>).</li>
+    <li><b>Sign in to Databricks.</b> In PowerShell, in the repo folder: <code>databricks auth login --profile &lt;your-profile&gt;</code> (or <code>--host https://&lt;your-workspace&gt;.cloud.databricks.com</code>) — a browser window opens; approve. (This is the only auth step; it uses your normal SSO login.)</li>
+    <li><b>Deploy the bundle.</b> <code>databricks bundle deploy -t dev</code>. This uploads the code and creates all jobs + the pipeline + the app in the workspace.</li>
+    <li><b>Seed sample protocols &amp; run the pipeline — from the UI.</b> In the Databricks web UI open <b>Workflows</b> and run these jobs in order (click <i>Run now</i>, wait for green): <code>Wave 0 Foundation</code> → <code>Wave 1 Synth+Bronze+Protocol</code> → <code>Wave 3 ADS build + eval + review</code> → <code>Wave 5 Audit+Serving</code>. (Wave 1 also parses the sample protocol PDFs/DOCX; Wave 3 approves them and builds all three ADS.)</li>
+    <li><b>Open the app.</b> Databricks web UI → <b>Compute → Apps → <code><initials>-rwe-ads-app</code></b> → open the URL. You're signed in via SSO.</li>
+    <li><b>Drive the flow in the app.</b> <b>Protocols</b> page → <i>Choose File</i> to upload a PDF/DOCX → <i>Run extraction</i> → select the study to see the extracted coded spec → <i>Approve &amp; e-sign</i> → <i>Build ADS</i>.</li>
+    <li><b>See results &amp; audit.</b> <b>Served ADS</b> shows the cohorts (source pill = Lakebase); <b>Review &amp; Sign-off</b> holds pending builds for e-sign; <b>Audit</b> shows the hash-chained GxP log + reproducibility manifests.</li>
+    <li><b>(Optional) Ask questions with Genie.</b> The bundle ships a Genie config placeholder — no space is provisioned. To enable analyst Q&amp;A, create a Genie space in the Databricks UI pointed at the approved <code>ads_output</code>, then ask e.g. "How many patients are in each study cohort, and what is the outcome rate?"</li>
+  </ol>
+  <p style="font-size:9px;color:var(--muted);">Bringing your own protocols later: just drop the PDF/DOCX into the Unity Catalog volume <code>ads_raw.protocols</code> (Catalog UI → Volumes → Upload) and re-run the extraction step — no code change.</p>
+
+  <div class="foot">
+    Working architecture view · draft for internal review. Recommends a governed, Databricks-native pipeline with agents used only where genuinely warranted. As-built annotations reflect the synthetic PoC build.
+  </div>
+</div>
+</body>
+</html>

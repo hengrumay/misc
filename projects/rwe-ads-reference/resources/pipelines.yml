@@ -1,0 +1,35 @@
+# Serverless Spark Declarative Pipeline — medallion silver + gold.
+# Bronze is materialized in ads_raw by the Wave 1 generator (waves/wave1_synth_bronze/
+# generate.py), so this pipeline reads bronze as an external source and publishes
+# silver -> ads_curated (default schema) and gold -> ads_serving (fully-qualified
+# names). This uses default (direct) publishing mode: `catalog` + `schema`, no
+# `target`, which allows one pipeline to publish to multiple schemas.
+# All runtime table names still resolve from demo.config.yaml via lib/config.py.
+resources:
+  pipelines:
+    ads_medallion:
+      name: rwe-ads-medallion
+      serverless: true            # ENFORCED: no classic cluster
+      channel: CURRENT
+      photon: true
+      development: true
+      catalog: ${var.uc_catalog}
+      schema: ${var.silver_schema}   # default schema for bare-named (silver) datasets
+      configuration:
+        ads.config_path: ${workspace.file_path}/demo.config.yaml
+      libraries:
+        - file:
+            path: ../pipelines/silver.py
+        - file:
+            path: ../pipelines/gold.py
+
+# Bundle vars used only by the pipeline shell (catalog/default schema). Runtime
+# table names still come from demo.config.yaml. Defaults mirror demo.config.yaml.
+# ⚠️ "Mirror" is hand-maintained: DAB cannot read demo.config.yaml at deploy time,
+# so these two values are a third copy of facts that also live in
+# demo.config.yaml and app/demo.config.yaml. Change all three together.
+variables:
+  uc_catalog:
+    default: rwe_ads_catalog
+  silver_schema:
+    default: ads_curated
