@@ -1,0 +1,11 @@
+%%{init: {'theme':'neutral'}}%%
+flowchart TB
+  subgraph AG["Agentic orchestration — flexible, but harder to reproduce / audit / cost"]
+    direction TB
+    A1["Custom agent framework<br/>(dynamic routing)"] --> A2["Model generates SQL<br/><i>per run</i>"] --> A3["Model validates output"] --> A4["Assemble dataset"]
+  end
+  subgraph DET["Deterministic + Databricks-native — suggested for a regulated pipeline"]
+    direction TB
+    B1["Databricks Workflows<br/>(fixed task graph)"] --> B2["AI Functions<br/>extract fields"] --> B3["Approved-SQL templates<br/><i>no model-generated SQL</i>"] --> B4["EXPLAIN validate<br/>+ human e-sign"] --> B5["Assemble dataset"]
+  end
+  AG -.->|"same result, but: reproducible · auditable · lower cost"| DET
