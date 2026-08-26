@@ -19,7 +19,7 @@ non-negotiable rule: nothing customer-identifying, no personal data (PII), no
 internal hosts or IDs, no secrets. This skill covers the two moments where that
 rule gets enforced:
 
-- **Onboard** — add a new project in the repo's standard shape.
+- **Onboard** — add a new project from the `_template/` accelerator.
 - **Check** — the safety gate a project must pass before it is committed or shared.
 
 Onboarding a project is not finished until it passes the Check. Treat the Check
@@ -30,24 +30,34 @@ that matter are the ones a quick read misses.
 
 ## Onboard a new project
 
-Every project is self-contained and follows the `_template/` shape:
+Every project starts from the `_template/` accelerator. The template's shape is:
 
 ```
-projects/<name>/
-├── README.md      # purpose, prerequisites, how to run (step by step)
-├── notebooks/     # analysis / walkthrough notebooks
-├── scripts/       # setup + run helpers for THIS project
-└── data/          # synthetic data + the generator that makes it
+_template/
+├── README.md         # project README placeholder — fill it in (Purpose / Prerequisites / How to run / Synthetic-data note)
+├── databricks.yml    # Databricks Asset Bundle definition
+├── notebooks/        # example notebooks
+├── apps/             # Databricks Apps (optional)
+├── dashboards/       # AI/BI dashboards (optional)
+├── scripts/          # setup / run helpers
+├── env.example       # environment-variable template
+└── requirements.txt  # Python dependencies
 ```
+
+A project's **internal layout is flexible and example-driven — it is not
+mandated.** Start from the template and add whatever the example needs. For
+instance, the `rwe-ads-reference` project uses `lib/`, `waves/`, `pipelines/`,
+`app/`, `tests/`, and `docs/` instead of the bare template folders.
 
 Steps:
 
 1. Copy the template and rename it: `cp -r _template projects/<name>`
-2. Fill in `projects/<name>/README.md` — what it demonstrates, prerequisites, and
-   how to run it, in plain language. Write it for a stranger: no customer context,
-   no "as we saw at <client>", no internal environment names.
-3. Put the **synthetic** data generator in `data/`, notebooks in `notebooks/`,
-   setup/run helpers in `scripts/`.
+2. Fill in `projects/<name>/README.md` (the copied placeholder) — what it
+   demonstrates, prerequisites, and how to run it, plus a synthetic-data note, in
+   plain language. Write it for a stranger: no customer context, no "as we saw at
+   <client>", no internal environment names.
+3. Add the project's code and its **synthetic** data generator. Keep every data
+   file generated / fake. Shape the internals however the example needs (see above).
 4. Add a row to the **Projects** table in the top-level `README.md`.
 5. Run the **Check** below. Fix every HIGH and MEDIUM finding, then re-run until
    clean. Only then is the project ready to commit.
@@ -67,42 +77,42 @@ with `grep -rnE`. Each category below says what it catches and how bad a hit is.
 
 ### 1. Secrets / tokens — HIGH
 ```bash
-rg -n -iE "dapi[0-9a-f]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY|xox[baprs]-|AKIA[0-9A-Z]{16}|ghp_[0-9A-Za-z]{36}|(password|secret|api[_-]?key|token)\s*[:=]\s*[^<\s]" "$DIR"
+rg -n -i -e "dapi[0-9a-f]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY|xox[baprs]-|AKIA[0-9A-Z]{16}|ghp_[0-9A-Za-z]{36}|(password|secret|api[_-]?key|token)\s*[:=]\s*[^<\s]" "$DIR"
 ```
 Placeholders like `<your-token>` or `DATABRICKS_TOKEN=<your-PAT>` are fine — eyeball
 each hit. Any real-looking value must go.
 
 ### 2. Internal hosts / workspaces — HIGH
 ```bash
-rg -n -iE "adb-[0-9]+\.[0-9]+\.azuredatabricks\.net|dbc-[0-9a-f-]+\.cloud\.databricks\.com|[a-z0-9-]+\.cloud\.databricks\.com" "$DIR" | rg -v "your-workspace|<your"
+rg -n -i -e "adb-[0-9]+\.[0-9]+\.azuredatabricks\.net|dbc-[0-9a-f-]+\.cloud\.databricks\.com|[a-z0-9-]+\.cloud\.databricks\.com" "$DIR" | rg -v "your-workspace|<your"
 ```
 A concrete host (anything that is not a `<placeholder>`) is a leak. Auth should be
 profile-based; the host should never be hardcoded.
 
 ### 3. Storage / connection URIs — HIGH
 ```bash
-rg -n -E "s3://|abfss://|gs://|wasbs://|\.dfs\.core\.windows\.net|jdbc:|postgres://" "$DIR"
+rg -n -e "s3://|abfss://|gs://|wasbs://|\.dfs\.core\.windows\.net|jdbc:|postgres://" "$DIR"
 ```
 
 ### 4. Emails / handles — HIGH if real
 ```bash
-rg -n -iE "[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}" "$DIR" | rg -v "example\.com|<your"
+rg -n -i -e "[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}" "$DIR" | rg -v "example\.com|<your"
 ```
 Everything real (especially `@databricks.com`) gets replaced with `<your-email>` or
 `someone@example.com`.
 
 ### 5. Resource IDs — MEDIUM/HIGH
 ```bash
-rg -n -E "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" "$DIR"   # UUIDs
-rg -n -E "\b[0-9]{12}\b" "$DIR"                                                   # 12-digit account IDs
-rg -n -E "\b[0-9a-f]{16}\b" "$DIR"                                                # 16-hex warehouse IDs
+rg -n -e "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" "$DIR"   # UUIDs
+rg -n -e "\b[0-9]{12}\b" "$DIR"                                                   # 12-digit account IDs
+rg -n -e "\b[0-9a-f]{16}\b" "$DIR"                                                # 16-hex warehouse IDs
 ```
 Ignore hits inside compiled/minified assets (`app/static`, `*.min.js`,
 `package-lock.json`) — those are false positives.
 
 ### 6. Internal orgs / repos / codenames — MEDIUM
 ```bash
-rg -n -iE "databricks-field-eng|field-eng|internal only|do not distribute|for internal review|before (any )?external use" "$DIR"
+rg -n -i -e "databricks-field-eng|field-eng|internal only|do not distribute|for internal review|before (any )?external use" "$DIR"
 ```
 Also watch for your own project's internal codenames — keep those in the private
 denylist (category 9) so the scan flags them.
@@ -114,7 +124,7 @@ is gone. A real audit of a bundle that had zero name hits still found a customer
 corporate palette wired into the app and served to the frontend. So inspect any
 branding/theme/color config:
 ```bash
-rg -n -iE "brand|branding|palette|theme|accent|#[0-9a-fA-F]{6}" "$DIR" -g "*.yaml" -g "*.yml" -g "*.json" -g "*.ts" -g "*.tsx" -g "*.css"
+rg -n -i -e "brand|branding|palette|theme|accent|#[0-9a-fA-F]{6}" "$DIR" -g "*.yaml" -g "*.yml" -g "*.json" -g "*.ts" -g "*.tsx" -g "*.css"
 ```
 Then judge every hex color: is it a Databricks / neutral color, or a customer's
 corporate color? If you cannot prove a hex is generic, replace it with a neutral

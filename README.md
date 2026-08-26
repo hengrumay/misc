@@ -25,25 +25,35 @@ you can read, run, and share.
 
 ```
 misc/
-├── _template/          # starter accelerator template — copy this to begin a new project
+├── _template/          # starter accelerator — copy it to begin a new project
+│   ├── README.md       #   project README placeholder (fill it in)
+│   ├── databricks.yml  #   Databricks Asset Bundle definition
+│   ├── notebooks/  apps/  dashboards/  scripts/
+│   ├── env.example
+│   └── requirements.txt
 ├── projects/           # one folder per example project
-│   └── <name>/         # self-contained: its own README, code, and synthetic-data generator
+│   └── <name>/         # self-contained; internal layout is flexible (see below)
 ├── .github/            # shared CI / publish workflows
 ├── LICENSE.md  NOTICE.md  SECURITY.md  CONTRIBUTING.md
 └── README.md           # this index
 ```
 
-Each project is self-contained — it carries its own README explaining what it is
-and how to run it, plus everything needed to generate its synthetic data. Project
-internals vary (some use notebooks, some use Databricks Asset Bundles with
-pipelines and an app); the project's own README is the entry point.
+Each project starts from `_template/` and is self-contained — it carries its own
+README (what it is + how to run it) plus everything needed to generate its
+synthetic data. A project's **internal layout is flexible**, not mandated: some
+projects use the bare template folders (`notebooks/`, `scripts/`, …), while
+`rwe-ads-reference` uses `lib/`, `waves/`, `pipelines/`, `app/`, `tests/`, and
+`docs/`. The project's own README is the entry point.
 
 ## Adding a project
 
 1. Copy the starter template and rename it:
    `cp -r _template projects/my-example`
-2. Fill in `projects/my-example/README.md` — purpose, prerequisites, how to run.
-3. Add the synthetic-data generator and code. Generated / fake data only.
+2. Fill in `projects/my-example/README.md` — the template ships a placeholder
+   ([`_template/README.md`](_template/README.md)) with **Purpose / Prerequisites /
+   How to run / Synthetic-data note**. Complete it in plain language.
+3. Add your code and a **synthetic** data generator. Generated / fake data only;
+   shape the project's internals however the example needs.
 4. Add a row to the **Projects** table above with a one-line description.
 5. **Run the scrub check before committing.** The `misc-project-check` skill
    (in [`.claude/skills/misc-project-check/`](.claude/skills/misc-project-check/SKILL.md))
