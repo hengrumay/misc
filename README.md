@@ -33,7 +33,6 @@ misc/
 │   └── requirements.txt
 ├── projects/           # one folder per example project
 │   └── <name>/         # self-contained; internal layout is flexible (see below)
-├── .github/            # shared CI / publish workflows
 ├── LICENSE.md  NOTICE.md  SECURITY.md  CONTRIBUTING.md
 └── README.md           # this index
 ```
