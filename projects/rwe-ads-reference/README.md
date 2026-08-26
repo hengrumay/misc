@@ -29,6 +29,12 @@ and PHI-containment controls — served low-latency from **Lakebase**.
 
 <sub>Architecture: Protocol PDF → extract → Stage-1 deterministic → `eval_ok` (hard gate) + Stage-3 model judges (advisory) → analyst review/e-sign → deterministic ADS build (template substitution) → EXPLAIN → `ads_output` → audit / Lakebase serving / (optional) Genie. Solid = wired; dashed = optional/not-wired.</sub>
 
+**Design rationale — why deterministic-native.** This reference deliberately favours a deterministic, Databricks-native build over an agentic one — the *same result*, but reproducible, auditable, and lower-cost for a regulated pipeline (source: `docs/orchestration-patterns-contrast.mmd`):
+
+<div align="center">
+  <img src="docs/orchestration-patterns-contrast.png" alt="Two orchestration patterns — agentic vs deterministic-native; this reference uses deterministic-native" width="460">
+</div>
+
 > **KB retrieval uses keyword matching by default.** Vector Search is **optional and off by default**:
 > set `vector_search.enabled: true` in the config and create (or point `approved_sql_kb.vs_endpoint` at)
 > an `ads-vs-endpoint` Vector Search endpoint to activate. `waves/wave0_foundation/build_index.py` (the
